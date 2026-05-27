@@ -21,9 +21,8 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // You can keep the JwtFilter bean but not use it (optional)
-    // @Autowired
-    // private JwtFilter jwtFilter;
+    @Autowired
+    private JwtFilter jwtFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -31,10 +30,16 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()   // 🔓 All endpoints are public
+                        // Public routes — no token needed
+                        .requestMatchers("/auth/register", "/auth/login").permitAll()
+                        // Everything else requires valid JWT
+                        .anyRequest().authenticated()
                 )
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        // .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class); // 🚫 JWT filter disabled
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                // Enable JWT filter
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -43,8 +48,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",                          // local development
-                "https://velorix-frontend.vercel.app"             // 🔥 your live frontend URL
+                "http://localhost:5173",
+                "https://velorix-frontend.vercel.app"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
@@ -57,6 +62,6 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();   // ✅ Restored
+        return new BCryptPasswordEncoder();
     }
 }
