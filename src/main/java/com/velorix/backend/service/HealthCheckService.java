@@ -6,7 +6,6 @@ import com.velorix.backend.repository.ApiEndpointRepository;
 import com.velorix.backend.repository.HealthLogRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -15,7 +14,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@EnableScheduling
 public class HealthCheckService {
 
     @Autowired
@@ -26,12 +24,14 @@ public class HealthCheckService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Scheduled(fixedRate = 30000) // every 5 minutes
+    @Scheduled(fixedRate = 30000)
     public void checkAllEndpoints() {
         List<ApiEndpoint> activeEndpoints = apiEndpointRepository.findAll()
                 .stream()
                 .filter(ApiEndpoint::isActive)
                 .toList();
+
+        System.out.println("🔍 Running health check for " + activeEndpoints.size() + " endpoints");
 
         for (ApiEndpoint endpoint : activeEndpoints) {
             checkEndpoint(endpoint);
@@ -64,6 +64,6 @@ public class HealthCheckService {
                 .build();
 
         healthLogRepository.save(log);
-        System.out.println("Checked " + endpoint.getUrl() + " - UP: " + isUp + " (" + responseTime + "ms)");
+        System.out.println("✅ Checked " + endpoint.getUrl() + " - UP: " + isUp + " (" + responseTime + "ms)");
     }
 }
