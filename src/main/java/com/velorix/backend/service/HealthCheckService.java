@@ -24,7 +24,7 @@ public class HealthCheckService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 300000)
     public void checkAllEndpoints() {
         List<ApiEndpoint> activeEndpoints = apiEndpointRepository.findAll()
                 .stream()
