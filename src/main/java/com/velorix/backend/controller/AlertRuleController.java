@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rules")
-@CrossOrigin(origins = "*")
+
 public class AlertRuleController {
 
     @Autowired
