@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Slf4j
 @Component
 public class JwtFilter extends OncePerRequestFilter {
 
@@ -29,26 +31,23 @@ public class JwtFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        System.out.println("=== JwtFilter processing: " + request.getRequestURI());
+        log.debug("JwtFilter processing: {}", request.getRequestURI());
 
         final String authHeader = request.getHeader("Authorization");
-        System.out.println("Auth header: " + authHeader);
 
         String userId = null;
         String jwt = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7);
-            System.out.println("JWT (first 50 chars): " + jwt.substring(0, Math.min(50, jwt.length())));
             try {
                 userId = jwtUtil.getUserIdFromToken(jwt);
-                System.out.println("Extracted userId: " + userId);
+                log.debug("Extracted userId: {}", userId);
             } catch (Exception e) {
-                System.out.println("❌ Failed to extract userId: " + e.getMessage());
-                e.printStackTrace();
+                log.debug("Failed to extract userId: {}", e.getMessage());
             }
         } else {
-            System.out.println("No Bearer token found");
+            log.debug("No Bearer token found");
         }
 
         if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -59,16 +58,15 @@ public class JwtFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    System.out.println("✅ Authentication set for user: " + userId);
+                    log.debug("Authentication set for user: {}", userId);
                 } else {
-                    System.out.println("❌ Token validation failed");
+                    log.debug("Token validation failed");
                 }
             } catch (Exception e) {
-                System.out.println("❌ loadUserByUsername or validateToken error: " + e.getMessage());
-                e.printStackTrace();
+                log.debug("loadUserByUsername or validateToken error: {}", e.getMessage());
             }
         } else {
-            System.out.println("⚠️ userId is null or authentication already exists");
+            log.debug("userId is null or authentication already exists");
         }
 
         chain.doFilter(request, response);
