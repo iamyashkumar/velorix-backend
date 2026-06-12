@@ -4,8 +4,10 @@ import com.velorix.backend.model.ApiEndpoint;
 import com.velorix.backend.model.HealthLog;
 import com.velorix.backend.repository.ApiEndpointRepository;
 import com.velorix.backend.repository.HealthLogRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -13,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 public class HealthCheckService {
 
@@ -22,7 +25,14 @@ public class HealthCheckService {
     @Autowired
     private HealthLogRepository healthLogRepository;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);  // 5 seconds to establish connection
+        factory.setReadTimeout(10000);    // 10 seconds to read response
+        return new RestTemplate(factory);
+    }
 
     @Scheduled(fixedRate = 300000)
     public void checkAllEndpoints() {
@@ -31,7 +41,7 @@ public class HealthCheckService {
                 .filter(ApiEndpoint::isActive)
                 .toList();
 
-        System.out.println("🔍 Running health check for " + activeEndpoints.size() + " endpoints");
+        log.info("Running health check for {} endpoints", activeEndpoints.size());
 
         for (ApiEndpoint endpoint : activeEndpoints) {
             checkEndpoint(endpoint);
@@ -64,6 +74,6 @@ public class HealthCheckService {
                 .build();
 
         healthLogRepository.save(log);
-        System.out.println("✅ Checked " + endpoint.getUrl() + " - UP: " + isUp + " (" + responseTime + "ms)");
+        this.log.info("Checked {} - UP: {} ({}ms)", endpoint.getUrl(), isUp, responseTime);
     }
 }
