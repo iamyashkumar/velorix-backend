@@ -48,18 +48,17 @@ public class AnalyticsController {
             List<ApiEndpoint> endpoints = apiEndpointRepository.findByUserId(userId);
 
             if (endpoints.isEmpty()) {
-                return ResponseEntity.ok(Map.of(
-                        "totalEndpoints", 0,
-                        "upEndpoints", 0,
-                        "downEndpoints", 0,
-                        "uptimePercentage", 0.0,
-                        "averageResponseTime", 0,
-                        "totalRequests", 0,
-                        "errorRate", 0.0
-                ));
+                Map<String, Object> emptyResponse = new LinkedHashMap<>();
+                emptyResponse.put("totalEndpoints", 0);
+                emptyResponse.put("upEndpoints", 0);
+                emptyResponse.put("downEndpoints", 0);
+                emptyResponse.put("uptimePercentage", "0.00");
+                emptyResponse.put("averageResponseTime", 0);
+                emptyResponse.put("totalRequests", 0);
+                emptyResponse.put("errorRate", "0.00");
+                return ResponseEntity.ok(emptyResponse);
             }
 
-            // Calculate uptime
             LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
             int upCount = 0;
             int downCount = 0;
@@ -68,19 +67,19 @@ public class AnalyticsController {
             int failedChecks = 0;
 
             for (ApiEndpoint endpoint : endpoints) {
-                List<HealthLog> logs = healthLogRepository.findByEndpointIdAndCheckedAtAfter(
-                        endpoint.getId(), sevenDaysAgo
-                );
+                List<HealthLog> logs = healthLogRepository.findByEndpointId(endpoint.getId());
 
                 for (HealthLog log : logs) {
-                    totalChecks++;
-                    if (log.isUp()) {
-                        upCount++;
-                    } else {
-                        downCount++;
-                        failedChecks++;
+                    if (log.getCheckedAt() != null && log.getCheckedAt().isAfter(sevenDaysAgo)) {
+                        totalChecks++;
+                        if (log.isUp()) {
+                            upCount++;
+                        } else {
+                            downCount++;
+                            failedChecks++;
+                        }
+                        totalResponseTime += log.getResponseTimeMs();
                     }
-                    totalResponseTime += log.getResponseTimeMs();
                 }
             }
 
@@ -88,16 +87,17 @@ public class AnalyticsController {
             int averageResponseTime = totalChecks > 0 ? (int) (totalResponseTime / totalChecks) : 0;
             double errorRate = totalChecks > 0 ? (failedChecks * 100.0) / totalChecks : 0;
 
-            return ResponseEntity.ok(Map.of(
-                    "totalEndpoints", endpoints.size(),
-                    "upEndpoints", (int) endpoints.stream().filter(ApiEndpoint::isActive).count(),
-                    "downEndpoints", (int) endpoints.stream().filter(e -> !e.isActive()).count(),
-                    "uptimePercentage", String.format("%.2f", uptimePercentage),
-                    "averageResponseTime", averageResponseTime,
-                    "totalRequests", totalChecks,
-                    "errorRate", String.format("%.2f", errorRate),
-                    "slaStatus", Double.parseDouble(String.format("%.2f", uptimePercentage)) >= 99.0 ? "✅ Met" : "⚠️ At Risk"
-            ));
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("totalEndpoints", endpoints.size());
+            response.put("upEndpoints", (int) endpoints.stream().filter(ApiEndpoint::isActive).count());
+            response.put("downEndpoints", (int) endpoints.stream().filter(e -> !e.isActive()).count());
+            response.put("uptimePercentage", String.format("%.2f", uptimePercentage));
+            response.put("averageResponseTime", averageResponseTime);
+            response.put("totalRequests", totalChecks);
+            response.put("errorRate", String.format("%.2f", errorRate));
+            response.put("slaStatus", Double.parseDouble(String.format("%.2f", uptimePercentage)) >= 99.0 ? "✅ Met" : "⚠️ At Risk");
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching analytics summary: {}", e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
@@ -122,18 +122,23 @@ public class AnalyticsController {
             }
 
             LocalDateTime startDate = LocalDateTime.now().minusDays(days);
-            List<HealthLog> logs = healthLogRepository.findByEndpointIdAndCheckedAtAfter(id, startDate);
+            List<HealthLog> logs = healthLogRepository.findByEndpointId(id);
+
+            // Filter by date
+            logs = logs.stream()
+                    .filter(log -> log.getCheckedAt() != null && log.getCheckedAt().isAfter(startDate))
+                    .collect(Collectors.toList());
 
             if (logs.isEmpty()) {
-                return ResponseEntity.ok(Map.of(
-                        "endpointName", endpoint.getName(),
-                        "uptimePercentage", 0.0,
-                        "averageResponseTime", 0,
-                        "maxResponseTime", 0,
-                        "minResponseTime", 0,
-                        "totalChecks", 0,
-                        "failures", 0
-                ));
+                Map<String, Object> emptyResponse = new LinkedHashMap<>();
+                emptyResponse.put("endpointName", endpoint.getName());
+                emptyResponse.put("uptimePercentage", "0.00");
+                emptyResponse.put("averageResponseTime", 0);
+                emptyResponse.put("maxResponseTime", 0);
+                emptyResponse.put("minResponseTime", 0);
+                emptyResponse.put("totalChecks", 0);
+                emptyResponse.put("failures", 0);
+                return ResponseEntity.ok(emptyResponse);
             }
 
             int upCount = (int) logs.stream().filter(HealthLog::isUp).count();
@@ -144,19 +149,20 @@ public class AnalyticsController {
             double uptimePercentage = (upCount * 100.0) / logs.size();
             int averageResponseTime = (int) (totalResponseTime / logs.size());
 
-            return ResponseEntity.ok(Map.of(
-                    "endpointName", endpoint.getName(),
-                    "endpointUrl", endpoint.getUrl(),
-                    "daysAnalyzed", days,
-                    "uptimePercentage", String.format("%.2f", uptimePercentage),
-                    "averageResponseTime", averageResponseTime,
-                    "maxResponseTime", maxResponseTime,
-                    "minResponseTime", minResponseTime,
-                    "totalChecks", logs.size(),
-                    "successfulChecks", upCount,
-                    "failures", downCount,
-                    "failureRate", String.format("%.2f", (downCount * 100.0) / logs.size())
-            ));
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("endpointName", endpoint.getName());
+            response.put("endpointUrl", endpoint.getUrl());
+            response.put("daysAnalyzed", days);
+            response.put("uptimePercentage", String.format("%.2f", uptimePercentage));
+            response.put("averageResponseTime", averageResponseTime);
+            response.put("maxResponseTime", maxResponseTime);
+            response.put("minResponseTime", minResponseTime);
+            response.put("totalChecks", logs.size());
+            response.put("successfulChecks", upCount);
+            response.put("failures", downCount);
+            response.put("failureRate", String.format("%.2f", (downCount * 100.0) / logs.size()));
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching endpoint analytics: {}", e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
@@ -181,40 +187,47 @@ public class AnalyticsController {
             }
 
             LocalDateTime startDate = LocalDateTime.now().minusDays(days);
-            List<HealthLog> logs = healthLogRepository.findByEndpointIdAndCheckedAtAfter(id, startDate);
+            List<HealthLog> logs = healthLogRepository.findByEndpointId(id);
 
-            // Group by day
-            Map<String, Map<String, Object>> dailyStats = logs.stream()
-                    .collect(Collectors.groupingBy(
-                            log -> log.getCheckedAt().toLocalDate().toString(),
-                            Collectors.collectingAndThen(
-                                    Collectors.toList(),
-                                    dayLogs -> {
-                                        long upCount = dayLogs.stream().filter(HealthLog::isUp).count();
-                                        double uptime = (upCount * 100.0) / dayLogs.size();
-                                        long avgResponseTime = (long) dayLogs.stream()
-                                                .mapToLong(HealthLog::getResponseTimeMs)
-                                                .average()
-                                                .orElse(0);
-
-                                        return Map.of(
-                                                "date", log.getCheckedAt().toLocalDate().toString(),
-                                                "uptime", String.format("%.1f", uptime),
-                                                "avgResponseTime", avgResponseTime,
-                                                "checks", dayLogs.size()
-                                        );
-                                    }
-                            )
-                    ));
-
-            List<Map<String, Object>> trendData = dailyStats.values().stream()
-                    .sorted((a, b) -> a.get("date").toString().compareTo(b.get("date").toString()))
+            // Filter by date
+            logs = logs.stream()
+                    .filter(log -> log.getCheckedAt() != null && log.getCheckedAt().isAfter(startDate))
                     .collect(Collectors.toList());
 
-            return ResponseEntity.ok(Map.of(
-                    "endpointName", endpoint.getName(),
-                    "trendData", trendData
-            ));
+            // Group by day
+            Map<String, List<HealthLog>> dailyLogs = logs.stream()
+                    .collect(Collectors.groupingBy(
+                            log -> log.getCheckedAt().toLocalDate().toString()
+                    ));
+
+            List<Map<String, Object>> trendData = new ArrayList<>();
+
+            for (String date : dailyLogs.keySet()) {
+                List<HealthLog> dayLogs = dailyLogs.get(date);
+                long upCount = dayLogs.stream().filter(HealthLog::isUp).count();
+                double uptime = dayLogs.size() > 0 ? (upCount * 100.0) / dayLogs.size() : 0;
+                long avgResponseTime = dayLogs.stream()
+                        .mapToLong(HealthLog::getResponseTimeMs)
+                        .average()
+                        .orElse(0);
+
+                Map<String, Object> dayData = new LinkedHashMap<>();
+                dayData.put("date", date);
+                dayData.put("uptime", String.format("%.1f", uptime));
+                dayData.put("avgResponseTime", avgResponseTime);
+                dayData.put("checks", dayLogs.size());
+
+                trendData.add(dayData);
+            }
+
+            // Sort by date
+            trendData.sort((a, b) -> a.get("date").toString().compareTo(b.get("date").toString()));
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("endpointName", endpoint.getName());
+            response.put("trendData", trendData);
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching endpoint trend: {}", e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
