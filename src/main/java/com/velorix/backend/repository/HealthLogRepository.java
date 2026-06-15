@@ -9,4 +9,6 @@ import java.util.List;
 public interface HealthLogRepository extends MongoRepository<HealthLog, String> {
     List<HealthLog> findByEndpointIdOrderByCheckedAtDesc(String endpointId, Pageable pageable);
     List<HealthLog> findByEndpointIdAndCheckedAtBetween(String endpointId, LocalDateTime start, LocalDateTime end);
+
+    List<HealthLog> findByEndpointId(String id);
 }
