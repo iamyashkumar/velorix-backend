@@ -56,6 +56,7 @@ public class AnalyticsController {
                 emptyResponse.put("averageResponseTime", 0);
                 emptyResponse.put("totalRequests", 0);
                 emptyResponse.put("errorRate", "0.00");
+                emptyResponse.put("slaStatus", "⚠️ No Data");
                 return ResponseEntity.ok(emptyResponse);
             }
 
@@ -86,6 +87,7 @@ public class AnalyticsController {
             double uptimePercentage = totalChecks > 0 ? (upCount * 100.0) / totalChecks : 0;
             int averageResponseTime = totalChecks > 0 ? (int) (totalResponseTime / totalChecks) : 0;
             double errorRate = totalChecks > 0 ? (failedChecks * 100.0) / totalChecks : 0;
+            String slaStatus = uptimePercentage >= 99.0 ? "✅ Met" : "⚠️ At Risk";
 
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("totalEndpoints", endpoints.size());
@@ -95,8 +97,9 @@ public class AnalyticsController {
             response.put("averageResponseTime", averageResponseTime);
             response.put("totalRequests", totalChecks);
             response.put("errorRate", String.format("%.2f", errorRate));
-            response.put("slaStatus", Double.parseDouble(String.format("%.2f", uptimePercentage)) >= 99.0 ? "✅ Met" : "⚠️ At Risk");
+            response.put("slaStatus", slaStatus);
 
+            log.info("Analytics summary retrieved for user: {}", userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching analytics summary: {}", e.getMessage());
@@ -132,12 +135,16 @@ public class AnalyticsController {
             if (logs.isEmpty()) {
                 Map<String, Object> emptyResponse = new LinkedHashMap<>();
                 emptyResponse.put("endpointName", endpoint.getName());
+                emptyResponse.put("endpointUrl", endpoint.getUrl());
+                emptyResponse.put("daysAnalyzed", days);
                 emptyResponse.put("uptimePercentage", "0.00");
                 emptyResponse.put("averageResponseTime", 0);
                 emptyResponse.put("maxResponseTime", 0);
                 emptyResponse.put("minResponseTime", 0);
                 emptyResponse.put("totalChecks", 0);
+                emptyResponse.put("successfulChecks", 0);
                 emptyResponse.put("failures", 0);
+                emptyResponse.put("failureRate", "0.00");
                 return ResponseEntity.ok(emptyResponse);
             }
 
@@ -148,6 +155,7 @@ public class AnalyticsController {
             long minResponseTime = logs.stream().mapToLong(HealthLog::getResponseTimeMs).min().orElse(0);
             double uptimePercentage = (upCount * 100.0) / logs.size();
             int averageResponseTime = (int) (totalResponseTime / logs.size());
+            double failureRate = (downCount * 100.0) / logs.size();
 
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("endpointName", endpoint.getName());
@@ -160,8 +168,9 @@ public class AnalyticsController {
             response.put("totalChecks", logs.size());
             response.put("successfulChecks", upCount);
             response.put("failures", downCount);
-            response.put("failureRate", String.format("%.2f", (downCount * 100.0) / logs.size()));
+            response.put("failureRate", String.format("%.2f", failureRate));
 
+            log.info("Endpoint analytics retrieved for: {} by user: {}", endpoint.getName(), userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching endpoint analytics: {}", e.getMessage());
@@ -206,7 +215,7 @@ public class AnalyticsController {
                 List<HealthLog> dayLogs = dailyLogs.get(date);
                 long upCount = dayLogs.stream().filter(HealthLog::isUp).count();
                 double uptime = dayLogs.size() > 0 ? (upCount * 100.0) / dayLogs.size() : 0;
-                long avgResponseTime = dayLogs.stream()
+                long avgResponseTime = (long) dayLogs.stream()
                         .mapToLong(HealthLog::getResponseTimeMs)
                         .average()
                         .orElse(0);
@@ -227,6 +236,7 @@ public class AnalyticsController {
             response.put("endpointName", endpoint.getName());
             response.put("trendData", trendData);
 
+            log.info("Endpoint trend retrieved for: {} by user: {}", endpoint.getName(), userId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching endpoint trend: {}", e.getMessage());
