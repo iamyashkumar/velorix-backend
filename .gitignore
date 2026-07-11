@@ -36,3 +36,25 @@ application-local.properties
 application-local.properties
 application-secret.properties
 
+# Environment & Config (NEVER COMMIT)
+application.properties
+application-*.properties
+.env
+.env.local
+.env.*.local
+
+# Secrets & Keys
+*.key
+*.pem
+*.p12
+*.keystore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build
+target/
+dist/
+
